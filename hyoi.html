@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>憑依 / HYOI</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Noto+Serif+JP:wght@300;400&display=swap');
+
+  :root {
+    --bg: #080808;
+    --surface: #0e0e0e;
+    --border: #1a1a1a;
+    --text-primary: #e8e8e0;
+    --text-secondary: #5a5a54;
+    --text-muted: #2e2e2a;
+    --accent: #8E3A36;
+    --accent-dim: rgba(142, 58, 54, 0.15);
+    --grain-opacity: 0.04;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: 'EB Garamond', 'Noto Serif JP', serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    cursor: crosshair;
+  }
+
+  /* grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+    opacity: var(--grain-opacity);
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* vertical lines */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 60px,
+      rgba(255,255,255,0.012) 60px,
+      rgba(255,255,255,0.012) 61px
+    );
+    pointer-events: none;
+    z-index: 9998;
+  }
+
+  /* PASSWORD GATE */
+  #gate {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    gap: 48px;
+    transition: opacity 0.8s ease;
+  }
+
+  #gate.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .gate-title {
+    text-align: center;
+    letter-spacing: 0.3em;
+  }
+
+  .gate-title .jp {
+    font-family: 'Noto Serif JP', serif;
+    font-weight: 300;
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .gate-title .en {
+    font-family: 'EB Garamond', serif;
+    font-size: 42px;
+    font-weight: 400;
+    color: var(--text-primary);
+    letter-spacing: 0.5em;
+    display: block;
+  }
+
+  .gate-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    width: 280px;
+  }
+
+  .gate-form input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-primary);
+    font-family: 'EB Garamond', serif;
+    font-size: 16px;
+    letter-spacing: 0.3em;
+    padding: 12px 0;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.3s;
+  }
+
+  .gate-form input:focus {
+    border-bottom-color: var(--accent);
+  }
+
+  .gate-form input::placeholder {
+    color: var(--text-muted);
+    letter-spacing: 0.2em;
+  }
+
+  .gate-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-family: 'EB Garamond', serif;
+    font-size: 13px;
+    letter-spacing: 0.4em;
+    padding: 12px 32px;
+    cursor: pointer;
+    transition: all 0.3s;
+    width: 100%;
+  }
+
+  .gate-btn:hover {
+    border-color: var(--accent);
+    color: var(--text-primary);
+  }
+
+  .gate-error {
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--accent);
+    font-family: 'EB Garamond', serif;
+    height: 16px;
+  }
+
+  /* MAIN CONTENT */
+  #main {
+    opacity: 0;
+    transition: opacity 1.2s ease 0.3s;
+  }
+
+  #main.visible { opacity: 1; }
+
+  /* NAV */
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    padding: 28px 48px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    background: rgba(8,8,8,0.92);
+    backdrop-filter: blur(8px);
+  }
+
+  .nav-brand {
+    font-family: 'EB Garamond', serif;
+    font-size: 18px;
+    letter-spacing: 0.5em;
+    color: var(--text-primary);
+  }
+
+  .nav-brand span {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 11px;
+    color: var(--text-secondary);
+    letter-spacing: 0.2em;
+    display: block;
+    margin-top: 2px;
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 40px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 12px;
+    letter-spacing: 0.3em;
+    transition: color 0.3s;
+  }
+
+  .nav-links a:hover { color: var(--text-primary); }
+
+  /* HERO */
+  #hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 0 48px 80px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-bg {
+    position: absolute;
+    inset: 0;
+    background: 
+      radial-gradient(ellipse 60% 50% at 70% 40%, rgba(142,58,54,0.06) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 60% at 20% 70%, rgba(142,58,54,0.03) 0%, transparent 60%);
+  }
+
+  .hero-counter {
+    font-size: 11px;
+    letter-spacing: 0.4em;
+    color: var(--text-muted);
+    margin-bottom: 32px;
+    font-family: 'EB Garamond', serif;
+  }
+
+  .hero-title {
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero-title .kanji {
+    font-family: 'Noto Serif JP', serif;
+    font-weight: 300;
+    font-size: clamp(80px, 12vw, 160px);
+    line-height: 0.9;
+    color: var(--text-primary);
+    display: block;
+    letter-spacing: -0.02em;
+    opacity: 0;
+    transform: translateY(30px);
+    animation: fadeUp 1.2s ease 0.5s forwards;
+  }
+
+  .hero-title .roman {
+    font-family: 'EB Garamond', serif;
+    font-size: clamp(12px, 1.5vw, 18px);
+    letter-spacing: 0.6em;
+    color: var(--text-secondary);
+    display: block;
+    margin-top: 16px;
+    opacity: 0;
+    animation: fadeUp 1.2s ease 0.8s forwards;
+  }
+
+  .hero-line {
+    width: 1px;
+    height: 80px;
+    background: var(--accent);
+    margin: 40px 0;
+    opacity: 0;
+    animation: fadeUp 1.2s ease 1s forwards;
+  }
+
+  .hero-desc {
+    max-width: 480px;
+    opacity: 0;
+    animation: fadeUp 1.2s ease 1.2s forwards;
+  }
+
+  .hero-desc p {
+    font-size: 13px;
+    line-height: 2;
+    color: var(--text-secondary);
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+
+  .hero-desc p.jp {
+    font-family: 'Noto Serif JP', serif;
+    font-weight: 300;
+  }
+
+  @keyframes fadeUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* SECTIONS */
+  section {
+    padding: 120px 48px;
+    border-top: 1px solid var(--border);
+  }
+
+  .section-label {
+    font-size: 10px;
+    letter-spacing: 0.5em;
+    color: var(--text-muted);
+    margin-bottom: 64px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+    max-width: 120px;
+  }
+
+  /* DOWNLOAD SECTION */
+  .download-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    max-width: 800px;
+  }
+
+  .download-item {
+    background: var(--bg);
+    padding: 48px 40px;
+    cursor: pointer;
+    transition: background 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .download-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--accent);
+    transform: scaleY(0);
+    transition: transform 0.3s;
+    transform-origin: bottom;
+  }
+
+  .download-item:hover { background: var(--surface); }
+  .download-item:hover::before { transform: scaleY(1); }
+
+  .download-num {
+    font-size: 10px;
+    letter-spacing: 0.4em;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+  }
+
+  .download-name {
+    font-size: 20px;
+    letter-spacing: 0.1em;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    font-family: 'EB Garamond', serif;
+  }
+
+  .download-name-jp {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 11px;
+    font-weight: 300;
+    color: var(--text-secondary);
+    letter-spacing: 0.2em;
+    margin-bottom: 24px;
+  }
+
+  .download-meta {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--text-muted);
+    line-height: 1.8;
+  }
+
+  .download-btn {
+    display: inline-block;
+    margin-top: 32px;
+    font-size: 11px;
+    letter-spacing: 0.4em;
+    color: var(--accent);
+    border: 1px solid rgba(142,58,54,0.3);
+    padding: 10px 24px;
+    text-decoration: none;
+    transition: all 0.3s;
+    background: transparent;
+    cursor: pointer;
+    font-family: 'EB Garamond', serif;
+  }
+
+  .download-btn:hover {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+  }
+
+  /* STORE SECTION */
+  .store-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    max-width: 900px;
+  }
+
+  .store-item {
+    background: var(--bg);
+    padding: 40px 32px;
+    transition: background 0.3s;
+  }
+
+  .store-item:hover { background: var(--surface); }
+
+  .store-img {
+    width: 100%;
+    aspect-ratio: 1;
+    background: var(--surface);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .store-img-placeholder {
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  /* T-shirt illustration placeholder */
+  .tshirt-icon {
+    width: 60px;
+    height: 50px;
+    opacity: 0.15;
+  }
+
+  .store-name {
+    font-size: 16px;
+    letter-spacing: 0.2em;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+    font-family: 'EB Garamond', serif;
+  }
+
+  .store-name-jp {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 10px;
+    font-weight: 300;
+    color: var(--text-secondary);
+    letter-spacing: 0.2em;
+    margin-bottom: 20px;
+  }
+
+  .store-price {
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+  }
+
+  .store-link {
+    display: inline-block;
+    font-size: 10px;
+    letter-spacing: 0.4em;
+    color: var(--text-muted);
+    text-decoration: none;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 4px;
+    transition: all 0.3s;
+  }
+
+  .store-link:hover {
+    color: var(--text-primary);
+    border-color: var(--text-primary);
+  }
+
+  /* ABOUT SECTION */
+  .about-layout {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 80px;
+    max-width: 900px;
+  }
+
+  .about-side-label {
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--text-muted);
+    line-height: 2.5;
+    font-family: 'EB Garamond', serif;
+  }
+
+  .about-text p {
+    font-size: 15px;
+    line-height: 2.2;
+    color: var(--text-secondary);
+    letter-spacing: 0.08em;
+    margin-bottom: 24px;
+  }
+
+  .about-text p.jp {
+    font-family: 'Noto Serif JP', serif;
+    font-weight: 300;
+    font-size: 13px;
+  }
+
+  .accent-line {
+    width: 40px;
+    height: 1px;
+    background: var(--accent);
+    margin: 40px 0;
+  }
+
+  /* FOOTER */
+  footer {
+    padding: 48px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer-brand {
+    font-family: 'EB Garamond', serif;
+    font-size: 14px;
+    letter-spacing: 0.4em;
+    color: var(--text-muted);
+  }
+
+  .footer-copy {
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    color: var(--text-muted);
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8,8,8,0.95);
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s;
+  }
+
+  .modal-overlay.active {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .modal {
+    border: 1px solid var(--border);
+    padding: 64px;
+    max-width: 480px;
+    width: 90%;
+    text-align: center;
+  }
+
+  .modal-title {
+    font-family: 'EB Garamond', serif;
+    font-size: 28px;
+    letter-spacing: 0.3em;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+  }
+
+  .modal-title-jp {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 11px;
+    font-weight: 300;
+    color: var(--text-secondary);
+    letter-spacing: 0.3em;
+    margin-bottom: 40px;
+  }
+
+  .modal-close {
+    display: inline-block;
+    margin-top: 32px;
+    font-size: 11px;
+    letter-spacing: 0.4em;
+    color: var(--text-muted);
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    font-family: 'EB Garamond', serif;
+    transition: color 0.3s;
+  }
+
+  .modal-close:hover { color: var(--text-primary); }
+
+  .dl-links {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: var(--border);
+    margin-top: 32px;
+  }
+
+  .dl-link-item {
+    background: var(--bg);
+    padding: 20px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-decoration: none;
+    transition: background 0.3s;
+    cursor: pointer;
+  }
+
+  .dl-link-item:hover { background: var(--surface); }
+
+  .dl-link-name {
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    color: var(--text-primary);
+    font-family: 'EB Garamond', serif;
+  }
+
+  .dl-link-size {
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    color: var(--text-muted);
+  }
+
+  @media (max-width: 768px) {
+    nav { padding: 20px 24px; }
+    section { padding: 80px 24px; }
+    #hero { padding: 0 24px 60px; }
+    .download-grid { grid-template-columns: 1fr; }
+    .store-grid { grid-template-columns: 1fr 1fr; }
+    .about-layout { grid-template-columns: 1fr; gap: 40px; }
+    footer { padding: 32px 24px; flex-direction: column; gap: 16px; text-align: center; }
+    .nav-links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- PASSWORD GATE -->
+<div id="gate">
+  <div class="gate-title">
+    <span class="jp">憑依</span>
+    <span class="en">HYOI</span>
+  </div>
+  <div class="gate-form">
+    <input type="password" id="pw-input" placeholder="— PASSWORD —" autocomplete="off">
+    <div class="gate-error" id="pw-error"></div>
+    <button class="gate-btn" onclick="checkPassword()">ENTER</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <nav>
+    <div class="nav-brand">
+      HYOI
+      <span>憑依</span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="#download">DOWNLOAD</a></li>
+      <li><a href="#store">STORE</a></li>
+      <li><a href="#about">ABOUT</a></li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <section id="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-counter">001 / JAPANESE ANIME MUSIC CULTURE</div>
+    <div class="hero-title">
+      <span class="kanji">憑依</span>
+      <span class="roman">H Y O I</span>
+    </div>
+    <div class="hero-line"></div>
+    <div class="hero-desc">
+      <p class="jp">著作権の壁を超えて、ただその音楽を愛するがゆえに。</p>
+      <p>Beyond copyright, beyond reason — only devotion remains.<br>A tribute to those possessed by Japanese anime music.</p>
+    </div>
+  </section>
+
+  <!-- DOWNLOAD -->
+  <section id="download">
+    <div class="section-label">DOWNLOAD — ダウンロード</div>
+    <div class="download-grid">
+      <div class="download-item" onclick="openModal('mix')">
+        <div class="download-num">DL — 01</div>
+        <div class="download-name">HYOI MIX Vol.1</div>
+        <div class="download-name-jp">憑依ミックス 第一巻</div>
+        <div class="download-meta">
+          FORMAT / MP3 320kbps<br>
+          DURATION / TBA<br>
+          TRACKLIST / Japanese Anime Music
+        </div>
+        <div class="download-btn">DOWNLOAD</div>
+      </div>
+      <div class="download-item" onclick="openModal('visual')">
+        <div class="download-num">DL — 02</div>
+        <div class="download-name">VISUAL ARCHIVE</div>
+        <div class="download-name-jp">ビジュアルアーカイブ</div>
+        <div class="download-meta">
+          FORMAT / JPG + PDF<br>
+          CONTENT / Artwork, Poster<br>
+          DESIGNER / —
+        </div>
+        <div class="download-btn">DOWNLOAD</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STORE -->
+  <section id="store">
+    <div class="section-label">STORE — ストア</div>
+    <div class="store-grid">
+
+      <div class="store-item">
+        <div class="store-img">
+          <svg class="tshirt-icon" viewBox="0 0 60 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M15 5 L5 15 L15 18 L15 45 L45 45 L45 18 L55 15 L45 5 C43 8 37 10 30 10 C23 10 17 8 15 5Z" stroke="#e8e8e0" stroke-width="1.5" fill="none"/>
+          </svg>
+        </div>
+        <div class="store-name">T-SHIRT</div>
+        <div class="store-name-jp">Tシャツ</div>
+        <div class="store-price">¥ —,———</div>
+        <a href="#" class="store-link">BOOTH にて購入 →</a>
+      </div>
+
+      <div class="store-item">
+        <div class="store-img">
+          <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg" width="60" height="60" style="opacity:0.15">
+            <rect x="10" y="8" width="40" height="44" stroke="#e8e8e0" stroke-width="1.5"/>
+            <line x1="18" y1="20" x2="42" y2="20" stroke="#e8e8e0" stroke-width="1"/>
+            <line x1="18" y1="28" x2="42" y2="28" stroke="#e8e8e0" stroke-width="1"/>
+            <line x1="18" y1="36" x2="34" y2="36" stroke="#e8e8e0" stroke-width="1"/>
+          </svg>
+        </div>
+        <div class="store-name">POSTER</div>
+        <div class="store-name-jp">ポスター</div>
+        <div class="store-price">¥ —,———</div>
+        <a href="#" class="store-link">BOOTH にて購入 →</a>
+      </div>
+
+      <div class="store-item">
+        <div class="store-img">
+          <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg" width="60" height="60" style="opacity:0.15">
+            <rect x="12" y="18" width="36" height="24" rx="2" stroke="#e8e8e0" stroke-width="1.5"/>
+            <line x1="12" y1="24" x2="48" y2="24" stroke="#e8e8e0" stroke-width="1"/>
+            <line x1="20" y1="18" x2="20" y2="42" stroke="#e8e8e0" stroke-width="1"/>
+          </svg>
+        </div>
+        <div class="store-name">STICKER</div>
+        <div class="store-name-jp">ステッカー</div>
+        <div class="store-price">¥ —,———</div>
+        <a href="#" class="store-link">BOOTH にて購入 →</a>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ABOUT -->
+  <section id="about">
+    <div class="section-label">ABOUT — について</div>
+    <div class="about-layout">
+      <div class="about-side-label">
+        MIRAGE<br>
+        ——<br>
+        PERSONAL<br>
+        PROJECT<br>
+        ——<br>
+        2026
+      </div>
+      <div class="about-text">
+        <p>There are those who remix anime opening and ending themes — not for profit, not for fame, but because they are simply, irrevocably possessed.</p>
+        <p class="jp">収益のためでもなく、名声のためでもなく、ただそのアニメを狂おしいほど愛しているがゆえに、OPやEDをリミックスし、配信し続ける人たちがいる。</p>
+        <div class="accent-line"></div>
+        <p>HYOI is a personal tribute to that culture — the obsession, the devotion, the madness that lives at the deepest stratum of Japanese anime music.</p>
+        <p class="jp">憑依は、そのカルチャーへの個人的な敬意である。</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="footer-brand">HYOI / 憑依 — MIRAGE</div>
+    <div class="footer-copy">Personal Project. All rights reserved to respective owners.</div>
+  </footer>
+
+</div>
+
+<!-- DOWNLOAD MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">HYOI MIX Vol.1</div>
+    <div class="modal-title-jp" id="modal-subtitle">憑依ミックス 第一巻</div>
+    <div class="dl-links" id="modal-links"></div>
+    <button class="modal-close" onclick="closeModal()">— CLOSE —</button>
+  </div>
+</div>
+
+<script>
+  // PASSWORD — 変更可能
+  const PASSWORD = 'hyoi2026';
+
+  function checkPassword() {
+    const input = document.getElementById('pw-input').value;
+    const error = document.getElementById('pw-error');
+    if (input === PASSWORD) {
+      document.getElementById('gate').classList.add('hidden');
+      setTimeout(() => {
+        document.getElementById('gate').style.display = 'none';
+        document.getElementById('main').classList.add('visible');
+      }, 800);
+    } else {
+      error.textContent = '— INCORRECT —';
+      document.getElementById('pw-input').value = '';
+      setTimeout(() => error.textContent = '', 2000);
+    }
+  }
+
+  document.getElementById('pw-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') checkPassword();
+  });
+
+  // MODAL
+  const modalContent = {
+    mix: {
+      title: 'HYOI MIX Vol.1',
+      subtitle: '憑依ミックス 第一巻',
+      links: [
+        { name: 'MIX — Full Length', size: 'MP3 / 320kbps', href: '#' },
+        { name: 'TRACKLIST — PDF', size: 'PDF / —MB', href: '#' },
+      ]
+    },
+    visual: {
+      title: 'VISUAL ARCHIVE',
+      subtitle: 'ビジュアルアーカイブ',
+      links: [
+        { name: 'ARTWORK — High Res', size: 'JPG / —MB', href: '#' },
+        { name: 'POSTER — Print Ready', size: 'PDF / —MB', href: '#' },
+      ]
+    }
+  };
+
+  function openModal(type) {
+    const c = modalContent[type];
+    document.getElementById('modal-title').textContent = c.title;
+    document.getElementById('modal-subtitle').textContent = c.subtitle;
+    const linksEl = document.getElementById('modal-links');
+    linksEl.innerHTML = c.links.map(l => `
+      <a class="dl-link-item" href="${l.href}">
+        <span class="dl-link-name">${l.name}</span>
+        <span class="dl-link-size">${l.size}</span>
+      </a>
+    `).join('');
+    document.getElementById('modal').classList.add('active');
+  }
+
+  function closeModal() {
+    document.getElementById('modal').classList.remove('active');
+  }
+
+  document.getElementById('modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+</script>
+
+</body>
+</html>
