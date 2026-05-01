@@ -659,6 +659,12 @@
     .nav-links { display: none; }
   }
 </style>
+<script>
+window.addEventListener('load', function() {
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('main').classList.add('visible');
+});
+</script>
 </head>
 <body>
 
@@ -813,7 +819,7 @@
     const input = document.getElementById('pw-input').value;
     const error = document.getElementById('pw-error');
     if (input === PASSWORD) {
-      document.getElementById('gate').classList.add('hidden');
+      document.getElementById('gate').style.display = 'none';
       setTimeout(() => {
         document.getElementById('gate').style.display = 'none';
         document.getElementById('main').classList.add('visible');
